@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <img src="icons/icon48.png" alt="Snapshot" class="logo">
+    <h2>Snapshot</h2>
+  </div>
+
+  <button id="captureBtn" class="capture-btn">
+    📸 Capture Page
+  </button>
+
+  <div id="status" class="status"></div>
+
+  <div class="actions-row">
+    <button id="exportBtn" class="action-btn" title="Backup all captures to file">
+      💾 Export
+    </button>
+    <button id="importBtn" class="action-btn" title="Restore captures from file">
+      📁 Import
+    </button>
+    <input type="file" id="importFile" accept=".json" style="display:none">
+  </div>
+
+  <div class="gallery-header">
+    <span>📁 Gallery (<span id="count">0</span>)</span>
+    <button id="clearAllBtn" class="clear-btn">Clear All</button>
+  </div>
+
+  <div id="gallery" class="gallery"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
