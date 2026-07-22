@@ -5,33 +5,76 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="header">
-    <img src="icons/icon48.png" alt="Snapshot" class="logo">
-    <h2>Snapshot</h2>
+  <div class="app-shell">
+    <div class="header card">
+      <img src="icons/icon32.png" alt="Snapshot" class="logo">
+      <div>
+        <h2>Snapshot</h2>
+        <p class="subtext">Auto-backup + gallery</p>
+      </div>
+      <div class="header-pill">Live schedule</div>
+    </div>
+
+    <div class="hero card">
+      <button id="captureBtn" class="capture-btn">
+        📸 Capture
+      </button>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat card">
+        <span class="stat-label">Captures</span>
+        <strong id="snapCount">0</strong>
+      </div>
+      <div class="stat card">
+        <span class="stat-label">Backups</span>
+        <strong id="backupCount">0</strong>
+      </div>
+    </div>
+
+    <div class="card settings-card">
+      <div class="section-title">Backup Settings</div>
+      <label class="toggle-row">
+        <input type="checkbox" id="backupEnabled">
+        <span>Auto-backup on</span>
+      </label>
+      <div class="setting-row">
+        <label for="backupInterval">Every (min):</label>
+        <input type="number" id="backupInterval" min="1" max="1440" step="1" value="15">
+      </div>
+      <div class="preset-row" aria-label="Quick backup interval presets">
+        <button class="preset-chip" type="button" data-minutes="5">5m</button>
+        <button class="preset-chip" type="button" data-minutes="15">15m</button>
+        <button class="preset-chip" type="button" data-minutes="60">1h</button>
+        <button class="preset-chip" type="button" data-minutes="240">4h</button>
+      </div>
+      <div class="setting-actions">
+        <button id="saveBackupSettingsBtn" class="action-btn primary">Save</button>
+      </div>
+      <div class="backup-meta">
+        <span id="backupLast">Last: -</span>
+        <span id="backupNext">Next: 15min</span>
+        <span id="backupCountdown">Countdown: --:--</span>
+      </div>
+    </div>
+
+    <div class="actions-row card">
+      <button id="exportBtn" class="action-btn" title="Export">💾</button>
+      <button id="importBtn" class="action-btn" title="Import">📁</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </div>
+
+    <div class="gallery-header">
+      <span>📁 Gallery</span>
+      <div class="gallery-badges">
+        <span class="badge">Total: <span id="galleryCount">0</span></span>
+        <button id="clearAllBtn" class="clear-btn">Clear</button>
+      </div>
+    </div>
+
+    <div id="gallery" class="gallery"></div>
   </div>
-
-  <button id="captureBtn" class="capture-btn">
-    📸 Capture Page
-  </button>
-
-  <div id="status" class="status"></div>
-
-  <div class="actions-row">
-    <button id="exportBtn" class="action-btn" title="Backup all captures to file">
-      💾 Export
-    </button>
-    <button id="importBtn" class="action-btn" title="Restore captures from file">
-      📁 Import
-    </button>
-    <input type="file" id="importFile" accept=".json" style="display:none">
-  </div>
-
-  <div class="gallery-header">
-    <span>📁 Gallery (<span id="count">0</span>)</span>
-    <button id="clearAllBtn" class="clear-btn">Clear All</button>
-  </div>
-
-  <div id="gallery" class="gallery"></div>
 
   <script src="popup.js"></script>
 </body>

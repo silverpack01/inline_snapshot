@@ -5,10 +5,120 @@ const clearAllBtn = document.getElementById("clearAllBtn");
 const exportBtn = document.getElementById("exportBtn");
 const importBtn = document.getElementById("importBtn");
 const importFile = document.getElementById("importFile");
-const countEl = document.getElementById("count");
+const snapCountEl = document.getElementById("snapCount");
+const backupCountEl = document.getElementById("backupCount");
+const galleryCountEl = document.getElementById("galleryCount");
+const backupEnabledEl = document.getElementById("backupEnabled");
+const backupIntervalEl = document.getElementById("backupInterval");
+const saveBackupSettingsBtn = document.getElementById("saveBackupSettingsBtn");
+const backupLastEl = document.getElementById("backupLast");
+const backupNextEl = document.getElementById("backupNext");
+const backupCountdownEl = document.getElementById("backupCountdown");
+const presetButtons = document.querySelectorAll(".preset-chip");
 
 const STORAGE_KEY = "snapshots";
 const MAX_SNAPSHOTS = 50;
+const BACKUP_SETTINGS_KEY = "backupSettings";
+const BACKUP_STATS_KEY = "backupStats";
+const DEFAULT_BACKUP_SETTINGS = {
+  enabled: true,
+  intervalMinutes: 15,
+};
+
+let backupCountdownTimer = null;
+
+function formatCountdown(ms) {
+  const safeMs = Math.max(0, ms);
+  const totalSeconds = Math.floor(safeMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatRelativeBackupTime(isoString) {
+  if (!isoString) return "none";
+  const date = new Date(isoString);
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatNextBackupText(settings) {
+  if (!settings.enabled) return "Next backup: off";
+  return `Next backup: every ${settings.intervalMinutes} min`;
+}
+
+function getDueTimestamp(settings, stats) {
+  const intervalMs = Math.max(1, Number(settings.intervalMinutes) || DEFAULT_BACKUP_SETTINGS.intervalMinutes) * 60 * 1000;
+  const lastBackupMs = stats.lastBackupAt ? new Date(stats.lastBackupAt).getTime() : Date.now();
+  return lastBackupMs + intervalMs;
+}
+
+function updateCountdown(settings, stats) {
+  if (!settings.enabled) {
+    backupCountdownEl.textContent = "Countdown: off";
+    return;
+  }
+
+  const dueAt = getDueTimestamp(settings, stats);
+  const remaining = dueAt - Date.now();
+  backupCountdownEl.textContent = `Countdown: ${formatCountdown(remaining)}`;
+}
+
+function startCountdownLoop(settings, stats) {
+  if (backupCountdownTimer) {
+    clearInterval(backupCountdownTimer);
+  }
+
+  updateCountdown(settings, stats);
+  backupCountdownTimer = setInterval(() => {
+    updateCountdown(settings, stats);
+  }, 1000);
+}
+
+function getCurrentBackupSettings() {
+  return {
+    enabled: backupEnabledEl.checked,
+    intervalMinutes: Math.max(1, Number.parseInt(backupIntervalEl.value, 10) || DEFAULT_BACKUP_SETTINGS.intervalMinutes),
+  };
+}
+
+async function loadBackupSettings() {
+  const data = await browser.storage.local.get([BACKUP_SETTINGS_KEY, BACKUP_STATS_KEY]);
+  const settings = { ...DEFAULT_BACKUP_SETTINGS, ...(data[BACKUP_SETTINGS_KEY] || {}) };
+  const stats = data[BACKUP_STATS_KEY] || { count: 0, lastBackupAt: null };
+
+  backupEnabledEl.checked = Boolean(settings.enabled);
+  backupIntervalEl.value = settings.intervalMinutes;
+  backupCountEl.textContent = stats.count || 0;
+  backupLastEl.textContent = `Last backup: ${formatRelativeBackupTime(stats.lastBackupAt)}`;
+  backupNextEl.textContent = formatNextBackupText(settings);
+  startCountdownLoop(settings, stats);
+  presetButtons.forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.minutes) === Number(settings.intervalMinutes));
+  });
+}
+
+async function saveBackupSettings() {
+  const intervalMinutes = Math.max(1, Number.parseInt(backupIntervalEl.value, 10) || DEFAULT_BACKUP_SETTINGS.intervalMinutes);
+  const settings = {
+    enabled: backupEnabledEl.checked,
+    intervalMinutes,
+  };
+
+  await browser.storage.local.set({ [BACKUP_SETTINGS_KEY]: settings });
+  backupNextEl.textContent = formatNextBackupText(settings);
+  const stats = (await browser.storage.local.get(BACKUP_STATS_KEY))[BACKUP_STATS_KEY] || { count: 0, lastBackupAt: null };
+  startCountdownLoop(settings, stats);
+  presetButtons.forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.minutes) === Number(settings.intervalMinutes));
+  });
+  setStatus(`✅ Backup schedule saved: ${settings.enabled ? intervalMinutes + " min" : "off"}`, "success");
+}
 
 // Show status message with type
 function setStatus(msg, type = "info") {
@@ -18,7 +128,8 @@ function setStatus(msg, type = "info") {
 
 // Update snapshot count
 function updateCount(snapshots) {
-  countEl.textContent = snapshots.length;
+  snapCountEl.textContent = snapshots.length;
+  galleryCountEl.textContent = snapshots.length;
 }
 
 // Load saved screenshots from storage
@@ -28,6 +139,7 @@ async function loadGallery() {
     const snapshots = data[STORAGE_KEY] || [];
     renderGallery(snapshots);
     updateCount(snapshots);
+    await loadBackupSettings();
   } catch (err) {
     console.error("Load gallery error:", err);
     setStatus("Gallery load failed", "error");
@@ -118,6 +230,30 @@ async function clearAllSnapshots() {
 }
 
 clearAllBtn.addEventListener("click", clearAllSnapshots);
+saveBackupSettingsBtn.addEventListener("click", saveBackupSettings);
+backupEnabledEl.addEventListener("change", () => {
+  const settings = getCurrentBackupSettings();
+  backupNextEl.textContent = formatNextBackupText(settings);
+  const stats = backupCountdownTimer ? null : { lastBackupAt: null, count: 0 };
+  updateCountdown(settings, stats || { lastBackupAt: null, count: 0 });
+});
+backupIntervalEl.addEventListener("input", () => {
+  const intervalMinutes = Number.parseInt(backupIntervalEl.value, 10);
+  presetButtons.forEach((button) => {
+    button.classList.toggle("active", Number(button.dataset.minutes) === intervalMinutes);
+  });
+  backupNextEl.textContent = formatNextBackupText(getCurrentBackupSettings());
+});
+presetButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const minutes = Number(button.dataset.minutes);
+    backupIntervalEl.value = String(minutes);
+    presetButtons.forEach((otherButton) => {
+      otherButton.classList.toggle("active", otherButton === button);
+    });
+    backupNextEl.textContent = formatNextBackupText(getCurrentBackupSettings());
+  });
+});
 
 // ============ EXPORT FUNCTIONALITY ============
 async function exportSnapshots() {
@@ -143,7 +279,7 @@ async function exportSnapshots() {
     });
 
     const url = URL.createObjectURL(blob);
-    const filename = `snapshot-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    const filename = `Snapshot-Backups/manual-export-${new Date().toISOString().slice(0, 10)}.json`;
 
     await browser.downloads.download({
       url: url,
@@ -261,9 +397,6 @@ captureBtn.addEventListener("click", async () => {
     snapshots.push(snapshot);
     await browser.storage.local.set({ [STORAGE_KEY]: snapshots });
 
-    // Also auto-export as backup (optional - saves to downloads)
-    await autoBackup(snapshots);
-
     setStatus("✅ Capture ho gaya aur store ho gaya!", "success");
     renderGallery(snapshots);
   } catch (err) {
@@ -273,34 +406,6 @@ captureBtn.addEventListener("click", async () => {
     captureBtn.disabled = false;
   }
 });
-
-// Auto-backup to downloads folder
-async function autoBackup(snapshots) {
-  try {
-    const exportData = {
-      version: "1.1",
-      exportedAt: new Date().toISOString(),
-      totalSnapshots: snapshots.length,
-      snapshots: snapshots
-    };
-
-    const blob = new Blob([JSON.stringify(exportData)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-
-    await browser.downloads.download({
-      url: url,
-      filename: "snapshot-auto-backup.json",
-      conflictAction: "overwrite"
-    });
-
-    URL.revokeObjectURL(url);
-  } catch (e) {
-    // Silent fail for auto-backup
-    console.log("Auto-backup skipped:", e.message);
-  }
-}
 
 // Init on popup open
 document.addEventListener("DOMContentLoaded", loadGallery);
